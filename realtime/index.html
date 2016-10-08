@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+   <meta charset="utf-8">
+
+   <title>Realtime</title>
+
+   <link rel="stylesheet" href="css/bootstrap.css">
+
+   <script type="text/javascript" src="js/jquery-1.11.3.js"></script>
+   <script type="text/javascript" src="js/bootstrap.js"></script>
+
+   <script>
+      var flight;
+
+      function montaTebela() {
+         //var flight = JSON.parse(flights);
+
+         var html = '<table class="table table-hover">';
+         html += '<tbody>';
+         html += '<thead>';
+         html += '<tr><th>#</th><th>ICAO</th><th>Callsign</th><th>Lat</th><th>Long</th><th>Track</th><th>Altitude</th><th>Speed</th><th>VS</th><th>Squawk</th><th>Last Update</th></tr>';
+         html += '<thead>';
+
+         var dataAtual = new Date();
+         var data = dataAtual.getFullYear() + '-' + (dataAtual.getMonth() +1) + '-' +dataAtual.getDate() + ' ' + dataAtual.getHours() + ':' + dataAtual.getMinutes() + ':' + dataAtual.getSeconds();
+         var a = data.split(/[^0-9]/);
+         var d = new Date (a[0],a[1]-1,a[2],a[3],a[4],a[5]);
+
+         var data_2 = d - 120000;
+         var data_20 = d - 1200000;
+         var e = 1;
+         for(i = flight.length - 1; i >= 0; i--) {
+            var cor = '#000000';
+            var a = flight[i].sys_time.split(/[^0-9]/);
+            var sys_time = new Date (a[0],a[1]-1,a[2],a[3],a[4],a[5]);
+            sys_time = sys_time - 0;
+
+            //console.log('sys_time:' + sys_time);
+            //console.log('data_2:' + data_2);
+            //console.log('data_20:' + data_20);
+
+            if(sys_time >= data_2) {
+               cor = '#00FF00';
+            } else if(sys_time >= data_20) {
+               cor = '#FFA500';
+            }
+
+            html += '<tr>';
+            html += '   <td><span style="color: ' + cor + ';">' + e + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].icao           !== undefined ? flight[i].icao           : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].callsign       !== undefined ? flight[i].callsign       : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].latitude       !== undefined ? flight[i].latitude       : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].longitude      !== undefined ? flight[i].longitude      : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].track          !== undefined ? flight[i].track          : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].altitude       !== undefined ? flight[i].altitude       : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].ground_speed   !== undefined ? flight[i].ground_speed   : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].vertical_speed !== undefined ? flight[i].vertical_speed : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].squawk         !== undefined ? flight[i].squawk         : '') + '</span></td>';
+            html += '   <td><span style="color: ' + cor + ';">' + (flight[i].sys_time       !== undefined ? flight[i].sys_time       : '') + '</span></td>';
+            html += '</tr>';
+
+            e++;
+         }
+         html += '</tbody>';
+         html += '</table>';
+
+         return html;
+      }
+
+      function init() {
+         var endereco = "ws.php";
+         var parametro = "";
+
+         $.ajax({
+            url: endereco + '?' + parametro,
+            //dataType: "Json",
+            async: true,
+            success: function(data) {
+               flight = JSON.parse(data);
+
+               var html = montaTebela();
+
+               $('#tabFlights').html(html);
+
+               //console.log('setInterval');
+               //setTimeout(function() { getFlights(); }, 5000);
+            }
+         });
+      }
+
+      function getStream() {
+         if(!!window.EventSource) {
+            var source = new EventSource('sse.php');
+
+            source.onmessage = function(e) {
+               var f = JSON.parse(e.data);
+
+               var achou = false;
+               for(i = 0; i < Object.keys(flight).length; i++) {
+                  var a = flight[i].sys_time.split(/[^0-9]/);
+                  var datePage = new Date (a[0],a[1]-1,a[2],a[3],a[4],a[5]);
+                  datePage = datePage - 0;
+
+                  a = f.sys_time.split(/[^0-9]/);
+                  var dateStream = new Date (a[0],a[1]-1,a[2],a[3],a[4],a[5]);
+                  dateStream = dateStream - 0;
+
+                  if(flight[i].icao == f.icao && (datePage + 1200000) > dateStream) { //20 min
+                     if(f.callsign != '')       flight[i].callsign       = f.callsign;
+                     if(f.latitude != '')       flight[i].latitude       = f.latitude;
+                     if(f.longitude != '')      flight[i].longitude      = f.longitude;
+                     if(f.track != '')          flight[i].track          = f.track;
+                     if(f.altitude != '')       flight[i].altitude       = f.altitude;
+                     if(f.ground_speed != '')   flight[i].ground_speed   = f.ground_speed;
+                     if(f.vertical_speed != '') flight[i].vertical_speed = f.vertical_speed;
+                     if(f.squawk != '')         flight[i].squawk         = f.squawk;
+                     flight[i].sys_time = f.sys_time;
+
+                     achou = true;
+                     break;
+                  }
+               }
+
+               if(!achou) {
+                  flight.push({icao: f.icao, callsign: f.callsign, latitude: f.latitude, longitude: f.longitude, track: f.track, altitude: f.altitude, ground_speed: f.ground_speed, vertical_speed: f.vertical_speed, squawk: f.squawk, sys_time: f.sys_time});
+               }
+
+               var html = montaTebela();
+
+               $('#tabFlights').html(html);
+            };
+
+            source.addEventListener('message', function(event) {
+               console.log('message: ' + event.data);
+            }, false);
+
+            source.addEventListener('open', function(event) {
+               console.log('open: ' + event.data);
+            }, false);
+
+            source.addEventListener('error', function(event) {
+               console.log('error: ' + event.data);
+            }, false);
+         } else {
+            //browser not support sse
+
+         }
+      }
+
+      $(document).ready(function() {
+         init();
+
+         getStream();
+      });
+
+   </script>
+</head>
+<body>
+   <div><h2>Flights</h2></div>
+
+   <div class="panel panel-default" id="tabFlights"></div>
+   
+</body>
+</html>
